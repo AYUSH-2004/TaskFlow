@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TaskFlow: A Modern To-Do App</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0f172a; 
+            overflow-x: hidden;
+        }
+
+        #particle-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+        }
+
+        .content-wrapper {
+            position: relative;
+            z-index: 1;
+        }
+
+        .glass-container {
+            background: rgba(15, 23, 42, 0.6);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border-radius: 1rem;
+            border: 1px solid rgba(56, 189, 248, 0.2);
+        }
+        
+        .task-item, .feature-card, .faq-item {
+            transition: all 0.3s ease;
+            animation: fadeIn 0.5s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .task-item:hover, .feature-card:hover {
+            transform: translateY(-5px);
+            background: rgba(30, 41, 59, 0.7);
+        }
+
+        .completed span {
+            text-decoration: line-through;
+            color: #64748b;
+        }
+        
+        .modal-backdrop {
+            background-color: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(5px);
+        }
+
+        .priority-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+        .priority-high { background-color: #38bdf8; }
+        .priority-medium { background-color: #60a5fa; }
+        .priority-low { background-color: #9ca3af; }
+
+        .filter-btn.active {
+            background-color: #0284c7;
+            color: white;
+        }
+
+        /* FAQ Accordion Styles */
+        .faq-answer {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease-out;
+        }
+    </style>
+</head>
+<body class="text-gray-100">
+
+    <canvas id="particle-canvas"></canvas>
+
+    <div class="content-wrapper">
+        <!-- Header & Navbar -->
+        <header class="bg-slate-900/50 backdrop-filter backdrop-blur-lg sticky top-0 z-40">
+            <nav class="container mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+                <div class="flex items-center justify-between h-16">
+                    <a href="#" class="text-2xl font-bold text-white">TaskFlow</a>
+                    <div class="hidden md:flex md:items-center md:space-x-8">
+                        <a href="#app" class="text-gray-300 hover:text-white transition">App</a>
+                        <a href="#features" class="text-gray-300 hover:text-white transition">Features</a>
+                        <a href="#faq" class="text-gray-300 hover:text-white transition">FAQ</a>
+                        <a href="#contact" class="text-gray-300 hover:text-white transition">Contact</a>
+                    </div>
+                    <div class="md:hidden">
+                        <button id="mobile-menu-button" class="text-gray-300 hover:text-white focus:outline-none">
+                            <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16m-7 6h7" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            </nav>
+            <!-- Mobile Menu -->
+            <div id="mobile-menu" class="hidden md:hidden">
+                <a href="#app" class="block py-2 px-4 text-sm text-gray-300 hover:bg-slate-800">App</a>
+                <a href="#features" class="block py-2 px-4 text-sm text-gray-300 hover:bg-slate-800">Features</a>
+                <a href="#faq" class="block py-2 px-4 text-sm text-gray-300 hover:bg-slate-800">FAQ</a>
+                <a href="#contact" class="block py-2 px-4 text-sm text-gray-300 hover:bg-slate-800">Contact</a>
+            </div>
+        </header>
+
+        <!-- Main App Section -->
+        <section id="app" class="container mx-auto max-w-3xl p-4 sm:p-6 lg:p-8 pt-24">
+             <header class="text-center mb-8">
+                <h1 class="text-5xl sm:text-6xl font-bold text-white" style="text-shadow: 2px 2px 4px rgba(0,0,0,0.2);">TaskFlow</h1>
+                <p class="text-blue-200 mt-2">Flow through your tasks with ease.</p>
+                <div id="user-info" class="mt-4 text-xs text-blue-300 hidden">
+                    <span class="font-semibold">User ID:</span> <span id="userIdDisplay"></span>
+                </div>
+            </header>
+
+            <main class="glass-container p-6">
+                <div class="mb-8">
+                    <h2 class="text-2xl font-semibold mb-4 text-white">Add a New Task</h2>
+                    <form id="add-task-form" class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                        <input type="text" id="task-input" placeholder="What's next?" class="md:col-span-4 p-3 bg-slate-800/50 border border-sky-400/30 rounded-md focus:outline-none focus:ring-2 focus:ring-sky-400 transition-all placeholder-gray-400" required>
+                        <div class="md:col-span-2">
+                            <label for="priority-select" class="block text-sm font-medium text-blue-200 mb-1">Priority</label>
+                            <select id="priority-select" class="w-full p-3 bg-slate-800/50 border border-sky-400/30 rounded-md focus:outline-none focus:ring-2 focus:ring-sky-400"><option value="medium" class="text-gray-800">Medium</option><option value="high" class="text-gray-800">High</option><option value="low" class="text-gray-800">Low</option></select>
+                        </div>
+                        <div class="md:col-span-2">
+                            <label for="due-date-input" class="block text-sm font-medium text-blue-200 mb-1">Due Date</label>
+                            <input type="date" id="due-date-input" class="w-full p-3 bg-slate-800/50 border border-sky-400/30 rounded-md focus:outline-none focus:ring-2 focus:ring-sky-400" style="color-scheme: dark;">
+                        </div>
+                        <button type="submit" class="md:col-span-4 bg-sky-600 text-white font-semibold py-3 px-6 rounded-md hover:bg-sky-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-900 focus:ring-sky-500 transition-all transform hover:scale-105">Add Task</button>
+                    </form>
+                </div>
+                <div class="mb-6">
+                    <h3 class="text-lg font-semibold text-white mb-2">Filters</h3>
+                    <div id="filter-container" class="flex flex-wrap gap-2"><button data-filter="all" class="filter-btn active py-2 px-4 rounded-md text-sm font-medium bg-sky-500/20 hover:bg-sky-500/30 transition-all">All</button><button data-filter="high" class="filter-btn py-2 px-4 rounded-md text-sm font-medium bg-sky-500/20 hover:bg-sky-500/30 transition-all">High</button><button data-filter="medium" class="filter-btn py-2 px-4 rounded-md text-sm font-medium bg-sky-500/20 hover:bg-sky-500/30 transition-all">Medium</button><button data-filter="low" class="filter-btn py-2 px-4 rounded-md text-sm font-medium bg-sky-500/20 hover:bg-sky-500/30 transition-all">Low</button></div>
+                </div>
+                <div id="loader" class="text-center py-8"><svg class="animate-spin h-8 w-8 text-sky-400 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg><p class="mt-2 text-blue-200">Loading tasks...</p></div>
+                <ul id="task-list" class="space-y-3"></ul>
+                <p id="empty-state" class="text-center text-slate-400 py-8 hidden">No tasks found. Add one to get started!</p>
+            </main>
+        </section>
+
+        <!-- Features Section -->
+        <section id="features" class="py-24">
+            <div class="container mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+                <div class="text-center mb-12">
+                    <h2 class="text-4xl font-bold text-white">Powerful Features</h2>
+                    <p class="mt-4 text-lg text-blue-200">Everything you need to stay organized and productive.</p>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                    <!-- Feature 1 -->
+                    <div class="feature-card glass-container p-8 text-center">
+                        <div class="flex items-center justify-center h-16 w-16 rounded-full bg-sky-500/20 mx-auto mb-6">
+                            <svg class="h-8 w-8 text-sky-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                        </div>
+                        <h3 class="text-xl font-semibold text-white">Task Priorities</h3>
+                        <p class="mt-2 text-slate-300">Assign high, medium, or low priority to focus on what matters most.</p>
+                    </div>
+                    <!-- Feature 2 -->
+                    <div class="feature-card glass-container p-8 text-center">
+                        <div class="flex items-center justify-center h-16 w-16 rounded-full bg-sky-500/20 mx-auto mb-6">
+                            <svg class="h-8 w-8 text-sky-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                        </div>
+                        <h3 class="text-xl font-semibold text-white">Due Dates</h3>
+                        <p class="mt-2 text-slate-300">Never miss a deadline by adding due dates to your tasks.</p>
+                    </div>
+                    <!-- Feature 3 -->
+                    <div class="feature-card glass-container p-8 text-center">
+                        <div class="flex items-center justify-center h-16 w-16 rounded-full bg-sky-500/20 mx-auto mb-6">
+                            <svg class="h-8 w-8 text-sky-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1v-2zM14 10a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 01-1 1h-2a1 1 0 01-1-1v-2z"></path></svg>
+                        </div>
+                        <h3 class="text-xl font-semibold text-white">Smart Filtering</h3>
+                        <p class="mt-2 text-slate-300">Instantly filter your list by priority to clear the noise.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- FAQ Section -->
+        <section id="faq" class="py-24 bg-slate-900/20">
+            <div class="container mx-auto max-w-3xl px-4 sm:px-6 lg:px-8">
+                <div class="text-center mb-12">
+                    <h2 class="text-4xl font-bold text-white">Frequently Asked Questions</h2>
+                    <p class="mt-4 text-lg text-blue-200">Have questions? We've got answers.</p>
+                </div>
+                <div class="space-y-4" id="faq-accordion">
+                    <!-- FAQ 1 -->
+                    <div class="faq-item glass-container p-6 rounded-lg">
+                        <button class="faq-question w-full flex justify-between items-center text-left text-lg font-semibold text-white">
+                            <span>Is my data saved securely?</span>
+                            <svg class="h-6 w-6 transform transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                        </button>
+                        <div class="faq-answer mt-4 text-slate-300">
+                            <p>Absolutely. Your tasks are stored in a secure Firestore database and are private to you. No one else can see your tasks unless you share your User ID.</p>
+                        </div>
+                    </div>
+                    <!-- FAQ 2 -->
+                    <div class="faq-item glass-container p-6 rounded-lg">
+                        <button class="faq-question w-full flex justify-between items-center text-left text-lg font-semibold text-white">
+                            <span>Can I use this on my phone?</span>
+                            <svg class="h-6 w-6 transform transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                        </button>
+                        <div class="faq-answer mt-4 text-slate-300">
+                            <p>Yes! TaskFlow is fully responsive and works beautifully on all devices, including desktops, tablets, and smartphones. Your tasks will sync automatically across all of them.</p>
+                        </div>
+                    </div>
+                    <!-- FAQ 3 -->
+                    <div class="faq-item glass-container p-6 rounded-lg">
+                        <button class="faq-question w-full flex justify-between items-center text-left text-lg font-semibold text-white">
+                            <span>Is this app free?</span>
+                            <svg class="h-6 w-6 transform transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                        </button>
+                        <div class="faq-answer mt-4 text-slate-300">
+                            <p>Yes, TaskFlow is completely free to use. It's a project designed to showcase modern web technologies and provide a useful tool for everyone.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Contact Section -->
+        <section id="contact" class="py-24">
+            <div class="container mx-auto max-w-3xl px-4 sm:px-6 lg:px-8">
+                <div class="text-center mb-12">
+                    <h2 class="text-4xl font-bold text-white">Get In Touch</h2>
+                    <p class="mt-4 text-lg text-blue-200">We'd love to hear from you. Send us a message!</p>
+                </div>
+                <div class="glass-container p-8">
+                    <!-- The form action uses 'mailto:' which will open the user's default email client. -->
+                    <!-- This is a client-side solution and does not require a backend server for sending emails. -->
+                    <form action="mailto:ayushupreti1825@gmail.com" method="POST" enctype="text/plain" class="space-y-6">
+                        <div>
+                            <label for="name" class="block text-sm font-medium text-blue-200 mb-1">Full Name</label>
+                            <input type="text" name="name" id="name" required class="w-full p-3 bg-slate-800/50 border border-sky-400/30 rounded-md focus:outline-none focus:ring-2 focus:ring-sky-400">
+                        </div>
+                        <div>
+                            <label for="email" class="block text-sm font-medium text-blue-200 mb-1">Email Address</label>
+                            <input type="email" name="email" id="email" required class="w-full p-3 bg-slate-800/50 border border-sky-400/30 rounded-md focus:outline-none focus:ring-2 focus:ring-sky-400">
+                        </div>
+                        <div>
+                            <label for="message" class="block text-sm font-medium text-blue-200 mb-1">Message</label>
+                            <textarea name="message" id="message" rows="4" required class="w-full p-3 bg-slate-800/50 border border-sky-400/30 rounded-md focus:outline-none focus:ring-2 focus:ring-sky-400"></textarea>
+                        </div>
+                        <button type="submit" class="w-full bg-sky-600 text-white font-semibold py-3 px-6 rounded-md hover:bg-sky-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-900 focus:ring-sky-500 transition-all transform hover:scale-105">Send Message</button>
+                    </form>
+                </div>
+            </div>
+        </section>
+
+        <!-- Footer Section -->
+        <footer class="text-center p-4">
+            <p class="text-sm text-slate-400">&copy; <span id="current-year"></span> TaskFlow. Crafted with care in Dehradun.</p>
+        </footer>
+    </div>
+
+    <!-- Edit Task Modal -->
+    <div id="edit-modal" class="fixed inset-0 z-50 flex items-center justify-center hidden modal-backdrop">
+        <div class="glass-container p-6 w-11/12 max-w-md">
+            <h2 class="text-2xl font-semibold mb-4 text-white">Edit Task</h2>
+            <input type="text" id="edit-task-input" class="w-full p-3 bg-slate-800/50 border border-sky-400/30 rounded-md focus:outline-none focus:ring-2 focus:ring-sky-400 transition-all placeholder-gray-400">
+            <div class="mt-6 flex justify-end gap-4"><button id="cancel-edit-btn" class="bg-slate-600/50 text-white font-semibold py-2 px-4 rounded-md hover:bg-slate-500/50 transition-all">Cancel</button><button id="save-edit-btn" class="bg-sky-600 text-white font-semibold py-2 px-4 rounded-md hover:bg-sky-700 transition-all">Save Changes</button></div>
+        </div>
+    </div>
+
+    <script>
+        // --- UI Interaction Scripts ---
+        // Mobile menu toggle
+        const mobileMenuButton = document.getElementById('mobile-menu-button');
+        const mobileMenu = document.getElementById('mobile-menu');
+        mobileMenuButton.addEventListener('click', () => {
+            mobileMenu.classList.toggle('hidden');
+        });
+
+        // FAQ Accordion
+        const faqAccordion = document.getElementById('faq-accordion');
+        faqAccordion.addEventListener('click', (e) => {
+            const questionButton = e.target.closest('.faq-question');
+            if (questionButton) {
+                const answer = questionButton.nextElementSibling;
+                const icon = questionButton.querySelector('svg');
+                
+                if (answer.style.maxHeight) {
+                    answer.style.maxHeight = null;
+                    icon.style.transform = 'rotate(0deg)';
+                } else {
+                    answer.style.maxHeight = answer.scrollHeight + 'px';
+                    icon.style.transform = 'rotate(180deg)';
+                }
+            }
+        });
+
+        // Set current year in footer
+        document.getElementById('current-year').textContent = new Date().getFullYear();
+    </script>
+
+    <!-- Particle Animation Script -->
+    <script>
+        const canvas = document.getElementById('particle-canvas');
+        const ctx = canvas.getContext('2d');
+        let particlesArray;
+
+        function setCanvasSize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
+        setCanvasSize();
+
+        class Particle {
+            constructor(x, y, directionX, directionY, size, color) { this.x = x; this.y = y; this.directionX = directionX; this.directionY = directionY; this.size = size; this.color = color; }
+            draw() { ctx.beginPath(); ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2, false); ctx.fillStyle = this.color; ctx.fill(); }
+            update() { if (this.x > canvas.width || this.x < 0) { this.directionX = -this.directionX; } if (this.y > canvas.height || this.y < 0) { this.directionY = -this.directionY; } this.x += this.directionX; this.y += this.directionY; this.draw(); }
+        }
+
+        function init() {
+            particlesArray = [];
+            let numberOfParticles = (canvas.height * canvas.width) / 9000;
+            for (let i = 0; i < numberOfParticles; i++) {
+                let size = (Math.random() * 2) + 1;
+                let x = (Math.random() * ((innerWidth - size * 2) - (size * 2)) + size * 2);
+                let y = (Math.random() * ((innerHeight - size * 2) - (size * 2)) + size * 2);
+                let directionX = (Math.random() * .4) - .2;
+                let directionY = (Math.random() * .4) - .2;
+                let color = 'rgba(56, 189, 248, 0.5)';
+                particlesArray.push(new Particle(x, y, directionX, directionY, size, color));
+            }
+        }
+
+        function connect() {
+            let opacityValue = 1;
+            for (let a = 0; a < particlesArray.length; a++) {
+                for (let b = a; b < particlesArray.length; b++) {
+                    let distance = ((particlesArray[a].x - particlesArray[b].x) * (particlesArray[a].x - particlesArray[b].x)) + ((particlesArray[a].y - particlesArray[b].y) * (particlesArray[a].y - particlesArray[b].y));
+                    if (distance < (canvas.width / 7) * (canvas.height / 7)) {
+                        opacityValue = 1 - (distance / 20000);
+                        ctx.strokeStyle = `rgba(56, 189, 248, ${opacityValue})`;
+                        ctx.lineWidth = 1;
+                        ctx.beginPath(); ctx.moveTo(particlesArray[a].x, particlesArray[a].y); ctx.lineTo(particlesArray[b].x, particlesArray[b].y); ctx.stroke();
+                    }
+                }
+            }
+        }
+
+        function animate() { requestAnimationFrame(animate); ctx.clearRect(0, 0, innerWidth, innerHeight); for (let i = 0; i < particlesArray.length; i++) { particlesArray[i].update(); } connect(); }
+        window.addEventListener('resize', () => { setCanvasSize(); init(); });
+        init();
+        animate();
+    </script>
+
+    <!-- Firebase SDK -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, collection, addDoc, onSnapshot, updateDoc, deleteDoc, query, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+       const firebaseConfig = {
+  apiKey: "AIzaSyCy8m7H-YPSQO6OY9VpXQiGLtejr6xoc9Y",
+  authDomain: "my-taskflow-app-e49c4.firebaseapp.com",
+  projectId: "my-taskflow-app-e49c4",
+  storageBucket: "my-taskflow-app-e49c4.firebasestorage.app",
+  messagingSenderId: "85149206722",
+  appId: "1:85149206722:web:914736fe3e06e0df1a135b",
+  measurementId: "G-49MZF1DP5R"
+};
+const appId = 'my-taskflow-app-e49c4';
+
+
+        const addTaskForm = document.getElementById('add-task-form');
+        const taskInput = document.getElementById('task-input');
+        const prioritySelect = document.getElementById('priority-select');
+        const dueDateInput = document.getElementById('due-date-input');
+        const taskList = document.getElementById('task-list');
+        const loader = document.getElementById('loader');
+        const emptyState = document.getElementById('empty-state');
+        const editModal = document.getElementById('edit-modal');
+        const editTaskInput = document.getElementById('edit-task-input');
+        const saveEditBtn = document.getElementById('save-edit-btn');
+        const cancelEditBtn = document.getElementById('cancel-edit-btn');
+        const userInfoDiv = document.getElementById('user-info');
+        const userIdDisplay = document.getElementById('userIdDisplay');
+        const filterContainer = document.getElementById('filter-container');
+
+        let db, auth, userId;
+        let currentEditingTaskId = null;
+        let unsubscribeFromTasks = null;
+        let allTasks = [];
+        let currentFilter = 'all';
+
+        async function initialize() {
+            try {
+                setLogLevel('debug');
+                const app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+                onAuthStateChanged(auth, user => {
+                    if (user) { userId = user.uid; userIdDisplay.textContent = userId; userInfoDiv.classList.remove('hidden'); setupTaskListener(); } else { signIn(); }
+                });
+            } catch (error) { console.error("Firebase initialization failed:", error); loader.textContent = "Error: Could not connect to the database."; }
+        }
+
+        async function signIn() {
+    try {
+        await signInAnonymously(auth);
+    } catch (error) {
+        console.error("Authentication failed:", error);
+        loader.textContent = "Error: Authentication failed.";
+    }
+}
+
+        function setupTaskListener() {
+            if (unsubscribeFromTasks) unsubscribeFromTasks();
+            if (!userId) return;
+            const userTasksCollectionPath = `/artifacts/${appId}/users/${userId}/todos`;
+            const q = query(collection(db, userTasksCollectionPath));
+            unsubscribeFromTasks = onSnapshot(q, (querySnapshot) => {
+                allTasks = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                renderTasks();
+            }, (error) => { console.error("Error fetching tasks:", error); loader.textContent = "Error: Could not fetch tasks."; });
+        }
+
+        function renderTasks() {
+            taskList.innerHTML = '';
+            loader.classList.add('hidden');
+            const filteredTasks = allTasks.filter(task => currentFilter === 'all' || task.priority === currentFilter);
+            const priorityOrder = { high: 1, medium: 2, low: 3 };
+            filteredTasks.sort((a, b) => {
+                if (a.completed !== b.completed) return a.completed - b.completed;
+                if (a.priority !== b.priority) return (priorityOrder[a.priority] || 4) - (priorityOrder[b.priority] || 4);
+                if (a.dueDate && b.dueDate) return new Date(a.dueDate) - new Date(b.dueDate);
+                if (a.dueDate) return -1; if (b.dueDate) return 1; return 0;
+            });
+            if (filteredTasks.length === 0) { emptyState.classList.remove('hidden'); } else {
+                emptyState.classList.add('hidden');
+                filteredTasks.forEach(task => { taskList.appendChild(createTaskElement(task)); });
+            }
+        }
+
+        function createTaskElement(task) {
+            const li = document.createElement('li');
+            li.setAttribute('data-id', task.id);
+            li.className = `task-item p-4 flex items-center gap-4 rounded-lg bg-slate-800/50 border border-sky-900/20 ${task.completed ? 'completed' : ''}`;
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox'; checkbox.checked = task.completed; checkbox.className = 'h-5 w-5 rounded border-gray-500 bg-transparent text-sky-500 focus:ring-sky-500 cursor-pointer flex-shrink-0';
+            checkbox.addEventListener('change', () => toggleTaskCompletion(task.id, !task.completed));
+            const priorityDot = document.createElement('div');
+            priorityDot.className = `priority-dot priority-${task.priority || 'medium'}`;
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'flex-grow';
+            const textSpan = document.createElement('span');
+            textSpan.textContent = task.text; textSpan.className = 'block font-medium text-slate-100';
+            contentDiv.appendChild(textSpan);
+            if (task.dueDate) { const dateSpan = document.createElement('span'); dateSpan.textContent = `Due: ${new Date(task.dueDate).toLocaleDateString()}`; dateSpan.className = 'block text-sm text-slate-400 mt-1'; contentDiv.appendChild(dateSpan); }
+            const buttonsDiv = document.createElement('div');
+            buttonsDiv.className = 'flex items-center gap-3 flex-shrink-0';
+            const editBtn = createIconButton(`<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z" /><path fill-rule="evenodd" d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clip-rule="evenodd" /></svg>`, 'text-slate-400 hover:text-white', () => openEditModal(task));
+            const deleteBtn = createIconButton(`<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" /></svg>`, 'text-slate-400 hover:text-red-500', () => deleteTask(task.id));
+            buttonsDiv.appendChild(editBtn); buttonsDiv.appendChild(deleteBtn);
+            li.appendChild(checkbox); li.appendChild(priorityDot); li.appendChild(contentDiv); li.appendChild(buttonsDiv);
+            return li;
+        }
+
+        function createIconButton(svg, classes, onClick) { const button = document.createElement('button'); button.innerHTML = svg; button.className = `transition-all transform hover:scale-125 ${classes}`; button.addEventListener('click', onClick); return button; }
+        async function addTask(e) {
+            e.preventDefault();
+            const taskText = taskInput.value.trim(); const priority = prioritySelect.value; const dueDate = dueDateInput.value;
+            if (!taskText) return;
+            try { const userTasksCollectionPath = `/artifacts/${appId}/users/${userId}/todos`; await addDoc(collection(db, userTasksCollectionPath), { text: taskText, priority: priority, dueDate: dueDate || null, completed: false, createdAt: new Date() }); addTaskForm.reset(); } catch (error) { console.error("Error adding task: ", error); }
+        }
+        async function toggleTaskCompletion(taskId, isCompleted) { const taskDocRef = doc(db, `/artifacts/${appId}/users/${userId}/todos`, taskId); await updateDoc(taskDocRef, { completed: isCompleted }); }
+        async function saveTaskEdit() { const newText = editTaskInput.value.trim(); if (!newText || !currentEditingTaskId) return; const taskDocRef = doc(db, `/artifacts/${appId}/users/${userId}/todos`, currentEditingTaskId); await updateDoc(taskDocRef, { text: newText }); closeEditModal(); }
+        async function deleteTask(taskId) { const taskDocRef = doc(db, `/artifacts/${appId}/users/${userId}/todos`, taskId); await deleteDoc(taskDocRef); }
+        function openEditModal(task) { currentEditingTaskId = task.id; editTaskInput.value = task.text; editModal.classList.remove('hidden'); editTaskInput.focus(); }
+        function closeEditModal() { currentEditingTaskId = null; editModal.classList.add('hidden'); }
+        function handleFilterClick(e) { if (e.target.tagName !== 'BUTTON') return; currentFilter = e.target.dataset.filter; document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active')); e.target.classList.add('active'); renderTasks(); }
+
+        addTaskForm.addEventListener('submit', addTask);
+        saveEditBtn.addEventListener('click', saveTaskEdit);
+        cancelEditBtn.addEventListener('click', closeEditModal);
+        filterContainer.addEventListener('click', handleFilterClick);
+        window.addEventListener('keydown', e => { if (e.key === 'Escape' && !editModal.classList.contains('hidden')) closeEditModal(); });
+
+        initialize();
+    </script>
+</body>
+</html>
